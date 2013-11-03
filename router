@@ -62,6 +62,12 @@ while( time() - $start_time <= 100 ) {
 }
 
 
+###############
+# Subroutines #
+###############
+sub chkReceiver($) {
+    my $lan = $_[0];
+}
 
 sub doDV($) {
     my $attached_lan = $_[0];
@@ -89,8 +95,10 @@ sub doDV($) {
     close FH_ROUTE;
 }
 
-sub chkReceiver($) {
-    my $lan = $_[0];
+sub doForward() {
+}
+
+sub doNMR() {
 }
 
 sub upRouteTable($) {
@@ -149,7 +157,4 @@ sub upRouteTable($) {
             close FH_LAN;
         }
     }
-}
-
-sub doForward() {
 }
