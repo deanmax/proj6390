@@ -17,9 +17,10 @@ sub upRouteTable($);
 my $LOG_FOLDER = "log";
 
 my ( $my_route_id, @attached_lan ) = @ARGV;
-my $timestamp = time(); # used to distinguish between fresh and stale
-                        # messages from log files
-my $start_time = $timestamp;
+my $start_time = time(); 
+my $DV_timestamp = time(); # used to distinguish between fresh and stale
+                           # messages from DV log files (check per 5 seconds)
+my $FW_timestamp; # used to track Forward time (one forward per second)
 
 # @route_table will be an array of hashed with each hash format as
 # {'dest' => '', 'hops' => '', 'next_hop' => ''}
@@ -39,15 +40,25 @@ if ( -e $output_file ) {
 }
 
 
-#----------------------------
-# Things actually happen here
-#----------------------------
+#-------------------------------------
+#     Things actually happen here
+#-------------------------------------
 # Main Loop
 # Process lifecycle: 100 seconds
-while ( time() - $start_time <= 100 ) {
-    doDV(\@attached_lan) and sleep 4;
-    doForward() and sleep 1;
-    $timestamp = time();
+#   1. Do forward job every 1 seconds
+#   2. Send DV message every 5 seconds
+#
+while( time() - $start_time <= 100 ) {
+    do {
+        $FW_timestamp = time();
+        doForward();
+        
+        if ( time() - $DV_timestamp >= 5 ) {
+            $DV_timestamp = time();
+            doDV(\@attached_lan);
+        }
+        
+    } while( time() - $FW_timestamp >= 1 );
 }
 
 
@@ -104,7 +115,7 @@ sub upRouteTable($) {
             while(my $line = <FH_LAN>) {
                 chomp $line;
                 my @arr = split(" ", $line);
-                if ( $arr[0] > $timestamp && $arr[1] eq 'DV' 
+                if ( $arr[0] > $DV_timestamp && $arr[1] eq 'DV' 
                   && $arr[2] == $elem && $arr[3] != $my_route_id ) {
                     # Got fresh incoming LSA message
                     # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
