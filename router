@@ -1,0 +1,144 @@
+#!/usr/bin/perl
+#----------------
+# Router process 
+#-------------------------------
+# Author: Ruiyu Wang
+# UTD-ID: 2021172972
+# EMAIL: rxw130330@utdallas.edu
+#-------------------------------
+
+use strict;
+
+sub doDV($);
+sub doNMR();
+sub doForward();
+sub chkReceiver($);
+sub upRouteTable($);
+my $LOG_FOLDER = "log";
+
+my ( $my_route_id, @attached_lan ) = @ARGV;
+my $timestamp = time(); # used to distinguish between fresh and stale
+                        # messages from log files
+my $start_time = $timestamp;
+
+# @route_table will be an array of hashed with each hash format as
+# {'dest' => '', 'hops' => '', 'next_hop' => ''}
+my @route_table = {};
+
+
+# Env Check
+print STDERR "More than 1 argument expected!\n" and exit 2
+  if @ARGV < 2;
+print STDERR "Too many arguments!(Max 11 allowed)" and exit 2
+  if @ARGV > 11;
+
+my $output_file = $LOG_FOLDER."/rout".$my_route_id;
+if ( -e $output_file ) {
+    print STDERR "Looks like router".$my_route_id." is already running.".
+        " Please double check and remove $output_file\n" and exit 2;
+}
+
+
+#----------------------------
+# Things actually happen here
+#----------------------------
+# Main Loop
+# Process lifecycle: 100 seconds
+while ( time() - $start_time <= 100 ) {
+    doDV(\@attached_lan) and sleep 4;
+    doForward() and sleep 1;
+    $timestamp = time();
+}
+
+
+
+sub doDV($) {
+    my $attached_lan = $_[0];
+    my @attached_lan = @$attached_lan;
+    
+    # First update local routing table
+    upRouteTable(\@attached_lan);
+
+    # Then send latest LSA to each neighbor LAN
+    mkdir $LOG_FOLDER,0777 unless -d $LOG_FOLDER;
+    open(FH_ROUTE, ">>".$output_file) 
+      or die "Can't open ".$output_file." for writing!";
+    foreach my $elem (@attached_lan) {
+        my $msg = time()." DV $elem $my_route_id "; # First column is timestamp
+        foreach my $n (0..9) { # Traverse local routing table, add path to msg
+            if ( defined $route_table[$n]->{'dest'} ) {
+                $msg .= $route_table[$n]->{'hops'} . " " .
+                        $route_table[$n]->{'next_hop'} . " ";
+            } else {
+                $msg .= "10 10 "; # hops = 10 means not reachable
+            }
+        }
+        print FH_ROUTE $msg."\n";
+    }
+    close FH_ROUTE;
+}
+
+sub chkReceiver($) {
+    my $lan = $_[0];
+}
+
+sub upRouteTable($) {
+    my $attached_lan = $_[0];
+    my @attached_lan = @$attached_lan;
+    foreach my $elem (@attached_lan) {
+        # Update routing table for directly attached lan 
+        foreach my $n (0..9) { # Traverse all remaining columns. 
+                               # At most 10 lans
+            if ( grep {$_ == $n} @attached_lan ) {
+                # This field is the lan that directly attaches to me
+                $route_table[$n]->{'dest'} = $n;
+                $route_table[$n]->{'hops'} = 0;
+                $route_table[$n]->{'next_hop'} = $my_route_id;
+            }
+        }
+        
+        # Update local routing table for remote lan
+        if ( -e $LOG_FOLDER."/lan".$elem ) {
+            open(FH_LAN, $LOG_FOLDER."/lan".$elem) 
+              or die "Can't open ".$LOG_FOLDER."/lan".$elem;
+            while(my $line = <FH_LAN>) {
+                chomp $line;
+                my @arr = split(" ", $line);
+                if ( $arr[0] > $timestamp && $arr[1] eq 'DV' 
+                  && $arr[2] == $elem && $arr[3] != $my_route_id ) {
+                    # Got fresh incoming LSA message
+                    # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
+                    # 4->d0, 5->router0, 6->d1, 7->router1, ... , 22->d9,
+                    # 23->router9
+                    foreach my $n (0..9) { # Traverse all remaining columns. 
+                                           # At most 10 lans
+                        if ( defined $arr[4+2*$n] && $arr[4+2*$n] < 10 ) {
+                            # Hops = 10 means this dest is not reachable
+                            $route_table[$n]->{'dest'} = $n;
+                            if ( defined $route_table[$n]->{'hops'} && 
+                                 $route_table[$n]->{'hops'} == 0 ) {
+                                # Neighbor lan, already updated
+                                next;
+                            } elsif ( (defined $route_table[$n]->{'hops'} && 
+                                 $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
+                              || (defined $route_table[$n]->{'hops'} &&
+                                 $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
+                              && $route_table[$n]->{'next_hop'} <= $arr[3]) ) {
+                                # Previous hops smaller or equal but through a
+                                # next-hop router with lower router_id
+                                next;
+                            } else {
+                                $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
+                                $route_table[$n]->{'next_hop'} = $arr[3];
+                            }
+                        }
+                    }
+                }
+            }
+            close FH_LAN;
+        }
+    }
+}
+
+sub doForward() {
+}
