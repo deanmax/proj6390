@@ -8,7 +8,6 @@
 #-------------------------------
 
 use strict;
-use Data::Dumper;
 
 sub chkChildNMR($$);
 sub chkReceiver($);
@@ -85,16 +84,16 @@ foreach my $lan_id ( @attached_lan ) {
           or die "Can't open ".$lan_file." for writing!";
         print FH_LAN "Timestamp DV lan-id router-id d0 r0 d1 r1 " .
                "d2 r2 d3 r3 d4 r4 d5 r5 d6 r6 d7 r7 d8 r8 d9 r9\n";
-        print FH_LAN "-" x 90;
+        print FH_LAN "-" x 89;
         print FH_LAN "\n";
         print FH_LAN "Timestamp NMR lan-id router-id host-lan-id\n";
-        print FH_LAN "-" x 45;
+        print FH_LAN "-" x 42;
         print FH_LAN "\n";
         print FH_LAN "Timestamp data lan-id host-lan-id\n";
-        print FH_LAN "-" x 35;
+        print FH_LAN "-" x 33;
         print FH_LAN "\n";
         print FH_LAN "Timestamp receiver lan-id\n";
-        print FH_LAN "-" x 30;
+        print FH_LAN "-" x 25;
         print FH_LAN "\n";
         close FH_LAN;
     }
@@ -108,12 +107,11 @@ foreach my $lan_id ( @attached_lan ) {
 #
 while( time() - $start_time <= 100 ) {
     ###########################################
-    #   1. Do NMR stuff when $RT_stable is set
+    #   1. Do NMR stuff when $RT_stable is set,
     #      send NMR every 10 seconds
     #   2. Do forward job every 1 seconds
     #   3. Send DV message every 5 seconds
     ###########################################
-    do {
         if ( $RT_stable && time() - $NMR_timestamp >= 10 ) {
             doNMR(\@attached_lan);
             $NMR_timestamp = time();
@@ -121,23 +119,22 @@ while( time() - $start_time <= 100 ) {
         
         # Send initial DV msg when Router starts
         # i.e. Local lan connection status
-        doDV(\@attached_lan) if $init_DV;
-        $DV_timestamp = time();
+        doDV(\@attached_lan) and $DV_timestamp = time() if $init_DV;
         $init_DV = 0;
         if ( time() - $DV_timestamp >= 5 ) {
             doDV(\@attached_lan);
             $DV_timestamp = time();
         }
         
-        if ( $RT_stable ) {
+        if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
             doForward(\@attached_lan);
             $FW_timestamp = time();
         }
         
-    } while( time() - $FW_timestamp >= 1 );
 }
-#Debug
-print Data::Dumper->Dump(\@route_table);
+## Debug
+#use Data::Dumper;
+#print Data::Dumper->Dump(\@route_table);
 
 
 ###############
@@ -260,7 +257,7 @@ sub doForward($) {
             if ($arr[0] >= $FW_timestamp && $arr[1] =~ /^data/ &&
             $arr[2] == $lan_id) {
                 my $src = $arr[3];
-                foreach my $k (@route_table) {
+                foreach my $k (0..9) {
                     if(defined $route_table[$k]->{'dest'} &&
                     $route_table[$k]->{'dest'} == $src) {
                         foreach my $g (@{$route_table[$k]->{'fwd_grp'}}) {
@@ -290,16 +287,16 @@ sub doForward($) {
 sub doNMR($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-    
-    foreach my $k (@route_table) {
-        if (defined $route_table[$k]->{'dest'}) {
+
+    foreach my $k (0..9) {
+        if ( defined $route_table[$k]->{'dest'} ) {
             $route_table[$k]->{'fwd_grp'} = ();
             foreach my $c (@{$route_table[$k]->{'child_map'}}) {
                 # If this child lan doesn't send NMR, add to forward group
-                push @{$route_table[$k]->{'fwd_grp'}},$c 
+                push (@{$route_table[$k]->{'fwd_grp'}}, $c)
                   if !chkChildNMR($k, $c);
             }
-        
+
             # If forward group is empty, then all child lans are leaf lan.
             # Thus, except for my parent LAN toward source, if there's no 
             # receiver attached to all the other lans, then I can send
@@ -308,17 +305,19 @@ sub doNMR($) {
                 # Don't care if there's receiver on my parent lan
                 if (chkReceiver($l) && $l != $route_table[$k]->{'next_lan'}) {
                     # Push it into forward group if it's not in it
-                    push @{$route_table[$k]->{'fwd_grp'}},$l
+                    push (@{$route_table[$k]->{'fwd_grp'}}, $l)
                       if !grep {$_ == $l} @{$route_table[$k]->{'fwd_grp'}};
                 }
             }
-            
-            # Sending NMR
-            if (! @{$route_table[$k]->{'fwd_grp'}}) {
+
+            # Sending NMR when there's no downstream receiver or lan
+            if ( $#{$route_table[$k]->{'fwd_grp'}} == -1 &&
+            defined $route_table[$k]->{'next_lan'} &&
+            $route_table[$k]->{'dest'} != $route_table[$k]->{'next_lan'} ) {
                 my $parent_lan = $route_table[$k]->{'next_lan'};
                 open(FH_ROUTE, ">>".$output_file) 
                   or die "Can't open ".$output_file." for writing!";
-                my $msg = time()." NMR $parent_lan my_route_id ".
+                my $msg = time()." NMR $parent_lan $my_route_id ".
                           $route_table[$k]->{'dest'};
                 print FH_ROUTE $msg."\n";
                 close FH_ROUTE;
