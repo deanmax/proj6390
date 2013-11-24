@@ -1,0 +1,154 @@
+#!/usr/bin/perl
+#---------------------------------
+# CS6390 Proj: Controller process
+#---------------------------------
+# Author: Ruiyu Wang
+# UTD-ID: 2021172972
+# EMAIL: rxw130330@utdallas.edu
+#-------------------------------
+use strict;
+
+sub chkLAN($);
+sub chkDVMsg($$);
+sub chkDATAMsg($$);
+sub chkNMRMsg($$);
+sub chkHOSTMsg($$);
+
+my $LOG_FOLDER = "log";
+my $start_time = time();
+my $check_time = $start_time;
+
+# Arguments processing
+my ( @hosts, @routers, @lans ); # store arguments for each type of processes
+my $argu_flag = 0;
+for( my $i = 0 ; $i < @ARGV; $i++ ) {
+    if ( $ARGV[$i] =~ /host/ ) {
+        $argu_flag = 1;
+        next;
+    } elsif ( $ARGV[$i] =~ /router/ ) {
+        $argu_flag = 2;
+        next;
+    } elsif ( $ARGV[$i] =~ /lan/ ) {
+        $argu_flag = 3;
+        next;
+    }
+
+    if ( $argu_flag == 1 ) {
+        push @hosts, $ARGV[$i];
+    } elsif ( $argu_flag == 2 ) {
+        push @routers, $ARGV[$i];
+    } elsif ( $argu_flag == 3 ) {
+        push @lans, $ARGV[$i];
+    }
+}
+
+# Validate Lan file existance
+sleep 1; # To make sure all lan files has been created by router process
+foreach my $lan_id (@lans) {
+    exit 2 if(!chkLAN($lan_id));
+}
+
+#-------------------------------------
+#     Things actually happen here
+#-------------------------------------
+# Main Loop
+# Process lifecycle: 100 seconds
+# Check every 1 second
+#
+while( time() - $start_time <= 100 ) {
+    if (time() - $check_time >= 1) {
+        my $time = $check_time;
+        $check_time = time();
+        
+        # Check each routX file, do corresponding coping and appending
+        foreach my $router_id (@routers) {
+            chkDVMsg($router_id, $time);
+            chkDATAMsg($router_id, $time);
+            chkNMRMsg($router_id, $time);
+        }
+        
+        # Check each houtX file, do corresponding coping and appending
+        foreach my $host_id (@hosts) {
+            chkHOSTMsg($host_id, $time);
+        }
+    }
+}
+
+
+
+
+
+###############
+# Subroutines #
+###############
+sub chkDVMsg($$) {
+    my $r_id = $_[0];
+    my $time = $_[1];
+    
+    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
+      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
+    while(my $line = <FH_ROUTE>) {
+        # Remove header
+        next if $line =~ /^Timestamp/i;
+        next if $line =~ /^\-/;
+        next if $line =~ /^\s*$/;
+        chomp $line;
+
+        my @arr = split(" ", $line);
+        next if $time - $arr[0] > 1; # Stale message
+        
+        $arr[0] = time(); # Update timestamp
+        if ($arr[1] eq 'DV') {
+            open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
+              or die "Can't open ".$LOG_FOLDER."/lan".$arr[2]." for writing!";
+            my $msg = time();
+            for(my $i = 1; $i < @arr; $i++ ) {
+                $msg .= " ".$arr[$i];
+            }
+            print FH_LAN $msg."\n";
+            close FH_LAN;
+        }
+    }
+    close FH_ROUTE;
+}
+
+sub chkDATAMsg($$) {
+    my $r_id = $_[0];
+    my $time = $_[1];
+}
+
+sub chkNMRMsg($$) {
+    my $r_id = $_[0];
+    my $time = $_[1];
+}
+
+sub chkHOSTMsg($$) {
+    my $h_id = $_[0];
+    my $time = $_[1];
+}
+
+#################################
+# Check if given lan file exists
+#
+# params
+#   1. lan id
+# Return
+#   1 if lan file exists
+#   0 if lan file doesn't exist
+#################################
+sub chkLAN($) {
+    my $lan_id = $_[0];
+    
+    if (! -e $LOG_FOLDER."/lan".$lan_id) {
+        print STDERR "Lan file ".$LOG_FOLDER."/lan".$lan_id." can't be found!\n";
+        return 0;
+    }
+    return 1;
+}
+
+
+
+
+
+
+

@@ -1,12 +1,11 @@
 #!/usr/bin/perl
-#----------------
-# Router process 
+#-------------------------------
+# CS6390 Proj: Router process
 #-------------------------------
 # Author: Ruiyu Wang
 # UTD-ID: 2021172972
 # EMAIL: rxw130330@utdallas.edu
 #-------------------------------
-
 use strict;
 
 sub chkChildNMR($$);
@@ -18,7 +17,7 @@ sub upRouteTable($);
 my $LOG_FOLDER = "log";
 
 my ( $my_route_id, @attached_lan ) = @ARGV;
-my $start_time = time(); 
+my $start_time = time();
 my $DV_timestamp = $start_time; # used to distinguish between fresh and stale
                            # messages from DV log files (check per 5 seconds)
 my $NMR_timestamp = $start_time;
@@ -28,18 +27,15 @@ my $RT_stable = 0; # Flag for routing table stability. Set if it's stable.
 my $init_DV = 1; # For sending DV message for the first time.
 
 # @route_table will be an array of hashes with each hash format as
-# {'dest' => '', 'hops' => '', 'next_hop' => '', 'next_lan' => '', 
+# {'dest' => '', 'hops' => '', 'next_hop' => '', 'next_lan' => '',
 #  'child_map' => [], 'fwd_grp' => ''}
 #
 # 'next_hop' stands for next hop router id
-#
 # 'next_lan' stands for the lan over which next_hop router is reached
-#
 # 'child_map' array has all neighbor lan's ids that use this router as their
-# next hop to 'dest'.
-#
+#     next hop to 'dest'.
 # 'fwd_grp' stores actual child lans that valid for accepting message
-# from 'dest'
+#     from 'dest'
 my @route_table = {};
 
 
@@ -62,7 +58,7 @@ if ( -e $output_file ) {
 #-----------
 mkdir $LOG_FOLDER,0777 unless -d $LOG_FOLDER;
 # Create routX and Print message header to routX
-open(FH_ROUTE, ">".$output_file) 
+open(FH_ROUTE, ">".$output_file)
   or die "Can't open ".$output_file." for writing!";
 print FH_ROUTE "Timestamp DV lan-id router-id d0 r0 d1 r1 d2 r2 " .
                "d3 r3 d4 r4 d5 r5 d6 r6 d7 r7 d8 r8 d9 r9\n";
@@ -116,7 +112,7 @@ while( time() - $start_time <= 100 ) {
             doNMR(\@attached_lan);
             $NMR_timestamp = time();
         }
-        
+
         # Send initial DV msg when Router starts
         # i.e. Local lan connection status
         doDV(\@attached_lan) and $DV_timestamp = time() if $init_DV;
@@ -125,12 +121,12 @@ while( time() - $start_time <= 100 ) {
             doDV(\@attached_lan);
             $DV_timestamp = time();
         }
-        
+
         if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
             doForward(\@attached_lan);
             $FW_timestamp = time();
         }
-        
+
 }
 ## Debug
 #use Data::Dumper;
@@ -152,7 +148,7 @@ while( time() - $start_time <= 100 ) {
 sub chkChildNMR($$) {
     my $src_id = $_[0];
     my $lan_id = $_[1];
-    
+
     open(FH_CHILD, $LOG_FOLDER."/lan".$lan_id)
       or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
     while(my $line = <FH_CHILD>) {
@@ -161,9 +157,9 @@ sub chkChildNMR($$) {
         next if $line =~ /^\-/;
         next if $line =~ /^\s*$/;
         chomp $line;
-                
+
         my @arr = split(" ", $line);
-        if( $arr[1] eq 'NMR' && $arr[2] == $lan_id && 
+        if( $arr[1] eq 'NMR' && $arr[2] == $lan_id &&
             $arr[4] == $src_id && time() - $arr[0] < 20 ) {
             # NMR message older than 20 seconds is treated as expired
             close FH_CHILD;
@@ -185,7 +181,7 @@ sub chkChildNMR($$) {
 ###########################################
 sub chkReceiver($) {
     my $lan_id = $_[0];
-    
+
     open(FH_CHILD, $LOG_FOLDER."/lan".$lan_id)
       or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
     while(my $line = <FH_CHILD>) {
@@ -194,9 +190,9 @@ sub chkReceiver($) {
         next if $line =~ /^\-/;
         next if $line =~ /^\s*$/;
         chomp $line;
-                
+
         my @arr = split(" ", $line);
-        if( $arr[1] eq 'receiver' && $arr[2] == $lan_id && 
+        if( $arr[1] eq 'receiver' && $arr[2] == $lan_id &&
         time() - $arr[0] < 20 ) {
             # receiver message older than 20 seconds is treated as expired
             close FH_CHILD;
@@ -210,14 +206,14 @@ sub chkReceiver($) {
 sub doDV($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-    
+
     # First update local routing table
     upRouteTable(\@attached_lan);
 
     # Then send latest LSA to each neighbor LAN
-    open(FH_ROUTE, ">>".$output_file) 
+    open(FH_ROUTE, ">>".$output_file)
       or die "Can't open ".$output_file." for writing!";
-    
+
     foreach my $elem (@attached_lan) {
         my $msg = time()." DV $elem $my_route_id "; # First column is timestamp
         foreach my $n (0..9) { # Traverse local routing table, add path to msg
@@ -240,8 +236,8 @@ sub doDV($) {
 sub doForward($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-    
-    open(FH_ROUTE, ">>".$output_file) 
+
+    open(FH_ROUTE, ">>".$output_file)
       or die "Can't open ".$output_file." for writing!";
     foreach my $lan_id (@attached_lan) {
         open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
@@ -252,7 +248,7 @@ sub doForward($) {
             next if $line =~ /^\-/;
             next if $line =~ /^\s*$/;
             chomp $line;
-                
+
             my @arr = split(" ", $line);
             if ($arr[0] >= $FW_timestamp && $arr[1] =~ /^data/ &&
             $arr[2] == $lan_id) {
@@ -276,13 +272,13 @@ sub doForward($) {
 
 ####################################################################
 # For each entry in routing table, check if there is any child map.
-# Loop over each child lan, check if there's NMR from that, and 
+# Loop over each child lan, check if there's NMR from that, and
 # update forward group.
 #
 # Also, check if there's any receiver connected, and update forward
 # group.
 #
-# Finally, send NMR to parent LAN if 
+# Finally, send NMR to parent LAN if
 ####################################################################
 sub doNMR($) {
     my $attached_lan = $_[0];
@@ -298,7 +294,7 @@ sub doNMR($) {
             }
 
             # If forward group is empty, then all child lans are leaf lan.
-            # Thus, except for my parent LAN toward source, if there's no 
+            # Thus, except for my parent LAN toward source, if there's no
             # receiver attached to all the other lans, then I can send
             # NMR to my parent LAN.
             foreach my $l (@attached_lan) {
@@ -315,7 +311,7 @@ sub doNMR($) {
             defined $route_table[$k]->{'next_lan'} &&
             $route_table[$k]->{'dest'} != $route_table[$k]->{'next_lan'} ) {
                 my $parent_lan = $route_table[$k]->{'next_lan'};
-                open(FH_ROUTE, ">>".$output_file) 
+                open(FH_ROUTE, ">>".$output_file)
                   or die "Can't open ".$output_file." for writing!";
                 my $msg = time()." NMR $parent_lan $my_route_id ".
                           $route_table[$k]->{'dest'};
@@ -331,8 +327,8 @@ sub upRouteTable($) {
     my @attached_lan = @$attached_lan;
     $RT_stable = 1;
     foreach my $elem (@attached_lan) {
-        # Update routing table for directly attached lan 
-        foreach my $n (0..9) { # Traverse all remaining columns. 
+        # Update routing table for directly attached lan
+        foreach my $n (0..9) { # Traverse all remaining columns.
                                # At most 10 lans
             if ( grep {$_ == $n} @attached_lan ) {
                 # This field is the lan that directly attaches to me
@@ -341,10 +337,10 @@ sub upRouteTable($) {
                 $route_table[$n]->{'next_hop'} = $my_route_id;
             }
         }
-        
+
         # Update local routing table for remote lan
         if ( -e $LOG_FOLDER."/lan".$elem ) {
-            open(FH_LAN, $LOG_FOLDER."/lan".$elem) 
+            open(FH_LAN, $LOG_FOLDER."/lan".$elem)
               or die "Can't open ".$LOG_FOLDER."/lan".$elem;
             while(my $line = <FH_LAN>) {
                 # Remove header
@@ -352,31 +348,31 @@ sub upRouteTable($) {
                 next if $line =~ /^\-/;
                 next if $line =~ /^\s*$/;
                 chomp $line;
-                
+
                 my @arr = split(" ", $line);
-                if ( $arr[0] >= $DV_timestamp && $arr[1] eq 'DV' 
+                if ( $arr[0] >= $DV_timestamp && $arr[1] eq 'DV'
                   && $arr[2] == $elem && $arr[3] != $my_route_id ) {
                     # Got fresh incoming LSA message
                     # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
                     # 4->d0, 5->router0, 6->d1, 7->router1, ... , 22->d9,
                     # 23->router9
-                    foreach my $n (0..9) { # Traverse all remaining columns. 
+                    foreach my $n (0..9) { # Traverse all remaining columns.
                                            # At most 10 lans
                         if ( defined $arr[4+2*$n] && $arr[4+2*$n] < 10 ) {
                             # Hops = 10 means this dest is not reachable
                             $route_table[$n]->{'dest'} = $n;
-                            if ( defined $route_table[$n]->{'hops'} && 
+                            if ( defined $route_table[$n]->{'hops'} &&
                                  $route_table[$n]->{'hops'} == 0 ) {
                                 # Neighbor lan, already updated
                                 next;
-                            } elsif ( (defined $route_table[$n]->{'hops'} && 
+                            } elsif ( (defined $route_table[$n]->{'hops'} &&
                                  $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
                               || (defined $route_table[$n]->{'hops'} &&
                                  $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
                               && $route_table[$n]->{'next_hop'} <= $arr[3]) ) {
                                 # Previous hops smaller or equal but through a
                                 # next-hop router with lower router_id
-                                
+
                                 # Make note of any child lan that use me as its
                                 # next hop to dest lan $n
                                 if ($arr[5+2*$n] == $my_route_id) {
@@ -387,11 +383,11 @@ sub upRouteTable($) {
                                 if ($arr[5+2*$n] == $my_route_id) {
                                     # to dest lan $n, my neighbor's next hop is me
                                     #
-                                    # Just discard this DV, because there must be 
+                                    # Just discard this DV, because there must be
                                     # another shorter path coming from other DV.
                                     # Here, just make note of this child lan
                                     push @{$route_table[$n]->{'child_map'}},$elem;
-                                    
+
                                 } else {
                                     $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
                                     $route_table[$n]->{'next_hop'} = $arr[3];
