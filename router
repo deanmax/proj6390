@@ -335,6 +335,8 @@ sub upRouteTable($) {
                 $route_table[$n]->{'dest'} = $n;
                 $route_table[$n]->{'hops'} = 0;
                 $route_table[$n]->{'next_hop'} = $my_route_id;
+                # No next_lan for directed attached destination
+                #$route_table[$n]->{'next_lan'} = undef; 
             }
         }
 
@@ -373,10 +375,11 @@ sub upRouteTable($) {
                                 # Previous hops smaller or equal but through a
                                 # next-hop router with lower router_id
 
-                                # Make note of any child lan that use me as its
+                                # Make note of any child lan that uses me as its
                                 # next hop to dest lan $n
                                 if ($arr[5+2*$n] == $my_route_id) {
-                                    push @{$route_table[$n]->{'child_map'}},$elem;
+                                    push @{$route_table[$n]->{'child_map'}},$elem
+                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
                                 }
                                 next;
                             } else {
@@ -385,8 +388,10 @@ sub upRouteTable($) {
                                     #
                                     # Just discard this DV, because there must be
                                     # another shorter path coming from other DV.
+                                    #
                                     # Here, just make note of this child lan
-                                    push @{$route_table[$n]->{'child_map'}},$elem;
+                                    push @{$route_table[$n]->{'child_map'}},$elem
+                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
 
                                 } else {
                                     $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;

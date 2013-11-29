@@ -59,14 +59,14 @@ while( time() - $start_time <= 100 ) {
     if (time() - $check_time >= 1) {
         my $time = $check_time;
         $check_time = time();
-        
+
         # Check each routX file, do corresponding coping and appending
         foreach my $router_id (@routers) {
             chkDVMsg($router_id, $time);
             chkDATAMsg($router_id, $time);
             chkNMRMsg($router_id, $time);
         }
-        
+
         # Check each houtX file, do corresponding coping and appending
         foreach my $host_id (@hosts) {
             chkHOSTMsg($host_id, $time);
@@ -75,16 +75,13 @@ while( time() - $start_time <= 100 ) {
 }
 
 
-
-
-
 ###############
 # Subroutines #
 ###############
 sub chkDVMsg($$) {
     my $r_id = $_[0];
     my $time = $_[1];
-    
+
     open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
       or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
     while(my $line = <FH_ROUTE>) {
@@ -95,13 +92,12 @@ sub chkDVMsg($$) {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] > 1; # Stale message
-        
-        $arr[0] = time(); # Update timestamp
+        next if $time - $arr[0] >= 1; # Stale message
+
         if ($arr[1] eq 'DV') {
             open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
               or die "Can't open ".$LOG_FOLDER."/lan".$arr[2]." for writing!";
-            my $msg = time();
+            my $msg = time(); # Update timestamp
             for(my $i = 1; $i < @arr; $i++ ) {
                 $msg .= " ".$arr[$i];
             }
@@ -115,16 +111,91 @@ sub chkDVMsg($$) {
 sub chkDATAMsg($$) {
     my $r_id = $_[0];
     my $time = $_[1];
+
+    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
+      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
+    while(my $line = <FH_ROUTE>) {
+        # Remove header
+        next if $line =~ /^Timestamp/i;
+        next if $line =~ /^\-/;
+        next if $line =~ /^\s*$/;
+        chomp $line;
+
+        my @arr = split(" ", $line);
+        next if $time - $arr[0] >= 1; # Stale message
+
+        if ($arr[1] =~ /^data/i) {
+            open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
+              or die "Can't open ".$LOG_FOLDER."/lan".$arr[2]." for writing!";
+            my $msg = time(); # Update timestamp
+            for(my $i = 1; $i < @arr; $i++ ) {
+                $msg .= " ".$arr[$i];
+            }
+            print FH_LAN $msg."\n";
+            close FH_LAN;
+        }
+    }
+    close FH_ROUTE;
 }
 
 sub chkNMRMsg($$) {
     my $r_id = $_[0];
     my $time = $_[1];
+    
+    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
+      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
+    while(my $line = <FH_ROUTE>) {
+        # Remove header
+        next if $line =~ /^Timestamp/i;
+        next if $line =~ /^\-/;
+        next if $line =~ /^\s*$/;
+        chomp $line;
+
+        my @arr = split(" ", $line);
+        next if $time - $arr[0] >= 1; # Stale message
+
+        if ($arr[1] eq 'NMR') {
+            open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
+              or die "Can't open ".$LOG_FOLDER."/lan".$arr[2]." for writing!";
+            my $msg = time(); # Update timestamp
+            for(my $i = 1; $i < @arr; $i++ ) {
+                $msg .= " ".$arr[$i];
+            }
+            print FH_LAN $msg."\n";
+            close FH_LAN;
+        }
+    }
+    close FH_ROUTE;
 }
 
 sub chkHOSTMsg($$) {
     my $h_id = $_[0];
     my $time = $_[1];
+    
+    open(FH_HOST, $LOG_FOLDER."/hout".$h_id)
+      or die "Can't open ".$LOG_FOLDER."/hout".$h_id;
+    while(my $line = <FH_HOST>) {
+        # Remove header
+        next if $line =~ /^Timestamp/i;
+        next if $line =~ /^\-/;
+        next if $line =~ /^\s*$/;
+        chomp $line;
+
+        my @arr = split(" ", $line);
+        next if $time - $arr[0] >= 1; # Stale message
+
+        if ($arr[1] =~ /^receiver/i || $arr[1] =~ /^data/i) {
+            open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
+              or die "Can't open ".$LOG_FOLDER."/lan".$arr[2]." for writing!";
+            my $msg = time(); # Update timestamp
+            for(my $i = 1; $i < @arr; $i++ ) {
+                $msg .= " ".$arr[$i];
+            }
+            print FH_LAN $msg."\n";
+            close FH_LAN;
+        }
+    }
+    close FH_HOST;
 }
 
 #################################
@@ -138,17 +209,10 @@ sub chkHOSTMsg($$) {
 #################################
 sub chkLAN($) {
     my $lan_id = $_[0];
-    
+
     if (! -e $LOG_FOLDER."/lan".$lan_id) {
         print STDERR "Lan file ".$LOG_FOLDER."/lan".$lan_id." can't be found!\n";
         return 0;
     }
     return 1;
 }
-
-
-
-
-
-
-
