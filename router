@@ -130,7 +130,8 @@ while( time() - $start_time <= 100 ) {
 }
 ## Debug
 #use Data::Dumper;
-#print Data::Dumper->Dump(\@route_table);
+#open(FH, ">> $output_file");
+#print FH Data::Dumper->Dump(\@route_table);
 
 
 ###############
@@ -365,7 +366,11 @@ sub upRouteTable($) {
                             $route_table[$n]->{'dest'} = $n;
                             if ( defined $route_table[$n]->{'hops'} &&
                                  $route_table[$n]->{'hops'} == 0 ) {
-                                # Neighbor lan, already updated
+                                # Neighbor lan, record child lans
+                                if ($arr[5+2*$n] == $my_route_id) {
+                                    push @{$route_table[$n]->{'child_map'}},$elem
+                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
+                                }
                                 next;
                             } elsif ( (defined $route_table[$n]->{'hops'} &&
                                  $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
