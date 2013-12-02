@@ -125,6 +125,7 @@ while( time() - $start_time <= 100 ) {
         if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
             doForward(\@attached_lan);
             $FW_timestamp = time();
+            sleep 1;
         }
 
 }
@@ -161,7 +162,7 @@ sub chkChildNMR($$) {
 
         my @arr = split(" ", $line);
         if( $arr[1] eq 'NMR' && $arr[2] == $lan_id &&
-            $arr[4] == $src_id && time() - $arr[0] < 20 ) {
+            $arr[4] == $src_id && time() - $arr[0] <= 20 ) {
             # NMR message older than 20 seconds is treated as expired
             close FH_CHILD;
             return 1;
@@ -237,13 +238,11 @@ sub doDV($) {
 sub doForward($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-
-    open(FH_ROUTE, ">>".$output_file)
-      or die "Can't open ".$output_file." for writing!";
+    
     foreach my $lan_id (@attached_lan) {
-        open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
+        open(FH_LANS, $LOG_FOLDER."/lan".$lan_id)
           or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-        while(my $line = <FH_LAN>) {
+        while(my $line = <FH_LANS>) {
             # Remove header
             next if $line =~ /^Timestamp/i;
             next if $line =~ /^\-/;
@@ -251,24 +250,29 @@ sub doForward($) {
             chomp $line;
 
             my @arr = split(" ", $line);
-            if ($arr[0] >= $FW_timestamp && $arr[1] =~ /^data/ &&
-            $arr[2] == $lan_id) {
+            if ($arr[0] >= $FW_timestamp && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
                 my $src = $arr[3];
                 foreach my $k (0..9) {
                     if(defined $route_table[$k]->{'dest'} &&
-                    $route_table[$k]->{'dest'} == $src) {
-                        foreach my $g (@{$route_table[$k]->{'fwd_grp'}}) {
-                            # Do forwarding
+                    $route_table[$k]->{'dest'} == $src &&
+                    defined @{$route_table[$k]->{'fwd_grp'}}) {
+                        open(FH_ROUTE, ">> ".$output_file)
+                          or die "Can't open ".$output_file." for writing!";
+                        #print FH_ROUTE time()." In loop.\n";
+                        #print FH_ROUTE time()." dest: $k, fwd_grp: @{$route_table[$k]->{'fwd_grp'}}\n";
+                        my @fwd_grp = @{$route_table[$k]->{'fwd_grp'}};
+                        foreach my $g (@fwd_grp) {
+                            # Do forwarding, update timestamp
                             my $msg = time()." ".$arr[1]." ".$g." ".$src;
                             print FH_ROUTE $msg."\n";
                         }
+                        close FH_ROUTE;
                     }
                 }
             }
         }
-        close FH_LAN;
+        close FH_LANS;
     }
-    close FH_ROUTE;
 }
 
 ####################################################################
@@ -279,7 +283,7 @@ sub doForward($) {
 # Also, check if there's any receiver connected, and update forward
 # group.
 #
-# Finally, send NMR to parent LAN if
+# Finally, send NMR to parent LAN if no forward group
 ####################################################################
 sub doNMR($) {
     my $attached_lan = $_[0];
@@ -298,10 +302,12 @@ sub doNMR($) {
             # Thus, except for my parent LAN toward source, if there's no
             # receiver attached to all the other lans, then I can send
             # NMR to my parent LAN.
+            #
+            # Check if, other than parent lan, there's receiver in child lans
             foreach my $l (@attached_lan) {
                 # Don't care if there's receiver on my parent lan
                 if (chkReceiver($l) && $l != $route_table[$k]->{'next_lan'}) {
-                    # Push it into forward group if it's not in it
+                    # Push it into forward group if it's not already in it
                     push (@{$route_table[$k]->{'fwd_grp'}}, $l)
                       if !grep {$_ == $l} @{$route_table[$k]->{'fwd_grp'}};
                 }
@@ -337,7 +343,7 @@ sub upRouteTable($) {
                 $route_table[$n]->{'hops'} = 0;
                 $route_table[$n]->{'next_hop'} = $my_route_id;
                 # No next_lan for directed attached destination
-                #$route_table[$n]->{'next_lan'} = undef; 
+                #$route_table[$n]->{'next_lan'} = undef;
             }
         }
 

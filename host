@@ -1,0 +1,151 @@
+#!/usr/bin/perl
+#----------------------------
+# CS6390 Proj: Host process
+#----------------------------
+# Author: Ruiyu Wang
+# UTD-ID: 2021172972
+# EMAIL: rxw130330@utdallas.edu
+#-------------------------------
+use strict;
+
+sub do_IGMP($);
+sub chk_mcast_msg($);
+sub do_mcast($);
+my $LOG_FOLDER = "log";
+
+my ( $my_host_id, $lan, $type, $t2start, $period ) = @ARGV;
+my $start_time = time();
+my $IGMP_timestamp = $start_time;
+my $mcast_chk_timestamp = $start_time;
+my $send_timestamp = $start_time;
+my $init_IGMP = 1; # For sending IGMP message for the first time.
+my $init_send = 1; # For sending source message for the first time.
+
+if ( !defined $type ) {
+    print STDERR "Must define 'Type' for host!\n" and exit 2;
+} elsif ( $type !~ /^sender|receiver$/ ) {
+    print STDERR "Type must be 'sender' or 'receiver'\n!" and exit 2;
+}
+
+#-----------
+# Env Check
+#-----------
+my $output_file = $LOG_FOLDER."/hout".$my_host_id;
+if ( -e $output_file ) {
+    print STDERR "Looks like host".$my_host_id." is already running.".
+        " Please double check and remove $output_file\n" and exit 2;
+}
+my $input_file = $LOG_FOLDER."/hin".$my_host_id;
+if ( -e $input_file ) {
+    print STDERR "Looks like host".$my_host_id." is already running.".
+        " Please double check and remove $input_file\n" and exit 2;
+}
+
+#-----------
+# Env Setup
+#-----------
+mkdir $LOG_FOLDER,0777 unless -d $LOG_FOLDER;
+# Create houtX and Print message header to houtX
+open(FH_HOST, ">".$output_file)
+  or die "Can't open ".$output_file." for writing!";
+print FH_HOST "Timestamp receiver lan_id\n";
+print FH_HOST "-" x 25;
+print FH_HOST "\n";
+print FH_HOST "Timestamp data lan-id host-lan-id\n";
+print FH_HOST "-" x 33;
+print FH_HOST "\n";
+close FH_HOST;
+
+# Create hinX and Print message header to hinX
+open(FH_HOST, ">".$input_file)
+  or die "Can't open ".$input_file." for writing!";
+print FH_HOST "Timestamp data lan-id host-lan-id\n";
+print FH_HOST "-" x 33;
+print FH_HOST "\n";
+close FH_HOST;
+
+sleep 1; # To make sure all lan files has been created by router process
+
+
+#-------------------------------------
+#     Things actually happen here
+#-------------------------------------
+# Main Loop
+# Process lifecycle: 100 seconds
+#
+if ( $type eq 'receiver' ) {
+    while( time() - $start_time <= 100 ) {
+        # Send IGMP every 10 seconds
+        do_IGMP($lan) and $IGMP_timestamp = time() if $init_IGMP;
+        $init_IGMP = 0;
+        if ( time() - $IGMP_timestamp >= 10 ) {
+            do_IGMP($lan);
+            $IGMP_timestamp = time();
+        }
+
+        # Each second, check multicast message
+        if ( time() - $mcast_chk_timestamp >= 1 ) {
+            chk_mcast_msg($lan);
+            $mcast_chk_timestamp = time();
+        }
+    }
+} elsif ( $type eq 'sender' ) {
+    sleep $t2start;
+    while( time() - $start_time <= 100 ) {
+        # Send source message every given period of time
+        do_mcast($lan) and $send_timestamp = time() if $init_send;
+        $init_send = 0;
+        if ( time() - $send_timestamp >= $period ) {
+            do_mcast($lan);
+            $send_timestamp = time();
+        }
+    }
+}
+
+
+###############
+# Subroutines #
+###############
+sub do_IGMP($) {
+    my $lan_id = $_[0];
+
+    open(FH_HOST, ">>".$output_file)
+      or die "Can't open ".$output_file." for writing!";
+    my $msg = time()." receiver ".$lan_id;
+    print FH_HOST $msg."\n";
+    close FH_HOST;
+}
+
+sub chk_mcast_msg($) {
+    my $lan_id = $_[0];
+
+    open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
+      or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
+    while(my $line = <FH_LAN>) {
+        # Remove header
+        next if $line =~ /^Timestamp/i;
+        next if $line =~ /^\-/;
+        next if $line =~ /^\s*$/;
+        chomp $line;
+
+        my @arr = split(" ", $line);
+        if ($arr[0] >= $mcast_chk_timestamp && $arr[1] =~ /^data/ &&
+            $arr[2] == $lan_id) {
+            open(FH_HOST, ">>".$input_file)
+              or die "Can't open ".$input_file." for writing!";
+            print FH_HOST $line."\n";
+            close FH_HOST;
+        }
+    }
+    close FH_LAN;
+}
+
+sub do_mcast($) {
+    my $lan_id = $_[0];
+
+    open(FH_HOST, ">>".$output_file)
+      or die "Can't open ".$output_file." for writing!";
+    my $msg = time()." data-".$my_host_id." ".$lan_id." ".$lan_id;
+    print FH_HOST $msg."\n";
+    close FH_HOST;
+}

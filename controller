@@ -57,20 +57,20 @@ foreach my $lan_id (@lans) {
 #
 while( time() - $start_time <= 100 ) {
     if (time() - $check_time >= 1) {
-        my $time = $check_time;
-        $check_time = time();
 
         # Check each routX file, do corresponding coping and appending
         foreach my $router_id (@routers) {
-            chkDVMsg($router_id, $time);
-            chkDATAMsg($router_id, $time);
-            chkNMRMsg($router_id, $time);
+            chkDVMsg($router_id, $check_time);
+            chkDATAMsg($router_id, $check_time);
+            chkNMRMsg($router_id, $check_time);
         }
 
         # Check each houtX file, do corresponding coping and appending
         foreach my $host_id (@hosts) {
-            chkHOSTMsg($host_id, $time);
+            chkHOSTMsg($host_id, $check_time);
         }
+
+        $check_time = time();
     }
 }
 
@@ -141,7 +141,7 @@ sub chkDATAMsg($$) {
 sub chkNMRMsg($$) {
     my $r_id = $_[0];
     my $time = $_[1];
-    
+
     open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
       or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
     while(my $line = <FH_ROUTE>) {
@@ -171,7 +171,7 @@ sub chkNMRMsg($$) {
 sub chkHOSTMsg($$) {
     my $h_id = $_[0];
     my $time = $_[1];
-    
+
     open(FH_HOST, $LOG_FOLDER."/hout".$h_id)
       or die "Can't open ".$LOG_FOLDER."/hout".$h_id;
     while(my $line = <FH_HOST>) {
