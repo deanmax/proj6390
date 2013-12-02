@@ -240,9 +240,9 @@ sub doForward($) {
     my @attached_lan = @$attached_lan;
     
     foreach my $lan_id (@attached_lan) {
-        open(FH_LANS, $LOG_FOLDER."/lan".$lan_id)
+        open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
           or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-        while(my $line = <FH_LANS>) {
+        while(my $line = <FH_LAN>) {
             # Remove header
             next if $line =~ /^Timestamp/i;
             next if $line =~ /^\-/;
@@ -271,7 +271,7 @@ sub doForward($) {
                 }
             }
         }
-        close FH_LANS;
+        close FH_LAN;
     }
 }
 
