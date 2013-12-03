@@ -57,12 +57,14 @@ print FH_HOST "\n";
 close FH_HOST;
 
 # Create hinX and Print message header to hinX
-open(FH_HOST, ">".$input_file)
-  or die "Can't open ".$input_file." for writing!";
-print FH_HOST "Timestamp data lan-id host-lan-id\n";
-print FH_HOST "-" x 33;
-print FH_HOST "\n";
-close FH_HOST;
+if ( $type eq 'receiver' ) {
+    open(FH_HOST, ">".$input_file)
+      or die "Can't open ".$input_file." for writing!";
+    print FH_HOST "Timestamp data lan-id host-lan-id\n";
+    print FH_HOST "-" x 33;
+    print FH_HOST "\n";
+    close FH_HOST;
+}
 
 sleep 1; # To make sure all lan files has been created by router process
 
@@ -75,18 +77,19 @@ sleep 1; # To make sure all lan files has been created by router process
 #
 if ( $type eq 'receiver' ) {
     while( time() - $start_time <= 100 ) {
+
+        # Each second, check multicast message
+        if ( time() - $mcast_chk_timestamp >= 1 ) {
+            chk_mcast_msg($lan);
+            $mcast_chk_timestamp = time();
+        }
+
         # Send IGMP every 10 seconds
         do_IGMP($lan) and $IGMP_timestamp = time() if $init_IGMP;
         $init_IGMP = 0;
         if ( time() - $IGMP_timestamp >= 10 ) {
             do_IGMP($lan);
             $IGMP_timestamp = time();
-        }
-
-        # Each second, check multicast message
-        if ( time() - $mcast_chk_timestamp >= 1 ) {
-            chk_mcast_msg($lan);
-            $mcast_chk_timestamp = time();
         }
     }
 } elsif ( $type eq 'sender' ) {
@@ -131,10 +134,10 @@ sub chk_mcast_msg($) {
         my @arr = split(" ", $line);
         if ($arr[0] >= $mcast_chk_timestamp && $arr[1] =~ /^data/ &&
             $arr[2] == $lan_id) {
-            open(FH_HOST, ">>".$input_file)
+            open(my $fh, ">>".$input_file)
               or die "Can't open ".$input_file." for writing!";
-            print FH_HOST $line."\n";
-            close FH_HOST;
+            print $fh $line."\n";
+            close $fh;
         }
     }
     close FH_LAN;

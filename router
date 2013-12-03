@@ -108,9 +108,9 @@ while( time() - $start_time <= 100 ) {
     #   2. Do forward job every 1 seconds
     #   3. Send DV message every 5 seconds
     ###########################################
-        if ( $RT_stable && time() - $NMR_timestamp >= 10 ) {
-            doNMR(\@attached_lan);
-            $NMR_timestamp = time();
+        if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
+            doForward(\@attached_lan);
+            $FW_timestamp = time();
         }
 
         # Send initial DV msg when Router starts
@@ -122,12 +122,10 @@ while( time() - $start_time <= 100 ) {
             $DV_timestamp = time();
         }
 
-        if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
-            doForward(\@attached_lan);
-            $FW_timestamp = time();
-            sleep 1;
+        if ( $RT_stable && time() - $NMR_timestamp >= 10 ) {
+            doNMR(\@attached_lan);
+            $NMR_timestamp = time();
         }
-
 }
 ## Debug
 #use Data::Dumper;
@@ -238,7 +236,7 @@ sub doDV($) {
 sub doForward($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-    
+
     foreach my $lan_id (@attached_lan) {
         open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
           or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
@@ -258,12 +256,10 @@ sub doForward($) {
                     defined @{$route_table[$k]->{'fwd_grp'}}) {
                         open(FH_ROUTE, ">> ".$output_file)
                           or die "Can't open ".$output_file." for writing!";
-                        #print FH_ROUTE time()." In loop.\n";
-                        #print FH_ROUTE time()." dest: $k, fwd_grp: @{$route_table[$k]->{'fwd_grp'}}\n";
                         my @fwd_grp = @{$route_table[$k]->{'fwd_grp'}};
                         foreach my $g (@fwd_grp) {
-                            # Do forwarding, update timestamp
-                            my $msg = time()." ".$arr[1]." ".$g." ".$src;
+                            # Do forwarding
+                            my $msg = $arr[0]." ".$arr[1]." ".$g." ".$src;
                             print FH_ROUTE $msg."\n";
                         }
                         close FH_ROUTE;
