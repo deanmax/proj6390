@@ -124,7 +124,9 @@ sub chk_mcast_msg($) {
 
     open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
       or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-    while(my $line = <FH_LAN>) {
+    my @content = <FH_LAN>;
+    close FH_LAN;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -140,7 +142,6 @@ sub chk_mcast_msg($) {
             close $fh;
         }
     }
-    close FH_LAN;
 }
 
 sub do_mcast($) {

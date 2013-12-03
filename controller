@@ -85,7 +85,9 @@ sub chkDVMsg($$) {
 
     open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
       or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    while(my $line = <FH_ROUTE>) {
+    my @content = <FH_ROUTE>;
+    close FH_ROUTE;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -102,7 +104,6 @@ sub chkDVMsg($$) {
             close FH_LAN;
         }
     }
-    close FH_ROUTE;
 }
 
 sub chkDATAMsg($$) {
@@ -111,7 +112,9 @@ sub chkDATAMsg($$) {
 
     open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
       or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    while(my $line = <FH_ROUTE>) {
+    my @content = <FH_ROUTE>;
+    close FH_ROUTE;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -128,7 +131,6 @@ sub chkDATAMsg($$) {
             close FH_LAN;
         }
     }
-    close FH_ROUTE;
 }
 
 sub chkNMRMsg($$) {
@@ -137,7 +139,9 @@ sub chkNMRMsg($$) {
 
     open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
       or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    while(my $line = <FH_ROUTE>) {
+    my @content = <FH_ROUTE>;
+    close FH_ROUTE;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -154,7 +158,6 @@ sub chkNMRMsg($$) {
             close FH_LAN;
         }
     }
-    close FH_ROUTE;
 }
 
 sub chkHOSTMsg($$) {
@@ -163,7 +166,9 @@ sub chkHOSTMsg($$) {
 
     open(FH_HOST, $LOG_FOLDER."/hout".$h_id)
       or die "Can't open ".$LOG_FOLDER."/hout".$h_id;
-    while(my $line = <FH_HOST>) {
+    my @content = <FH_HOST>;
+    close FH_HOST;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -180,7 +185,6 @@ sub chkHOSTMsg($$) {
             close FH_LAN;
         }
     }
-    close FH_HOST;
 }
 
 #################################

@@ -151,7 +151,9 @@ sub chkChildNMR($$) {
 
     open(FH_CHILD, $LOG_FOLDER."/lan".$lan_id)
       or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-    while(my $line = <FH_CHILD>) {
+    my @content = <FH_CHILD>;
+    close FH_CHILD;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -162,11 +164,9 @@ sub chkChildNMR($$) {
         if( $arr[1] eq 'NMR' && $arr[2] == $lan_id &&
             $arr[4] == $src_id && time() - $arr[0] <= 20 ) {
             # NMR message older than 20 seconds is treated as expired
-            close FH_CHILD;
             return 1;
         }
     }
-    close FH_CHILD;
     return 0;
 }
 
@@ -184,7 +184,9 @@ sub chkReceiver($) {
 
     open(FH_CHILD, $LOG_FOLDER."/lan".$lan_id)
       or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-    while(my $line = <FH_CHILD>) {
+    my @content = <FH_CHILD>;
+    close FH_CHILD;
+    foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
         next if $line =~ /^\-/;
@@ -195,11 +197,9 @@ sub chkReceiver($) {
         if( $arr[1] eq 'receiver' && $arr[2] == $lan_id &&
         time() - $arr[0] < 20 ) {
             # receiver message older than 20 seconds is treated as expired
-            close FH_CHILD;
             return 1;
         }
     }
-    close FH_CHILD;
     return 0;
 }
 
@@ -240,7 +240,9 @@ sub doForward($) {
     foreach my $lan_id (@attached_lan) {
         open(FH_LAN, $LOG_FOLDER."/lan".$lan_id)
           or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
-        while(my $line = <FH_LAN>) {
+        my @content = <FH_LAN>;
+        close FH_LAN;
+        foreach my $line (@content) {
             # Remove header
             next if $line =~ /^Timestamp/i;
             next if $line =~ /^\-/;
@@ -267,7 +269,6 @@ sub doForward($) {
                 }
             }
         }
-        close FH_LAN;
     }
 }
 
@@ -347,7 +348,9 @@ sub upRouteTable($) {
         if ( -e $LOG_FOLDER."/lan".$elem ) {
             open(FH_LAN, $LOG_FOLDER."/lan".$elem)
               or die "Can't open ".$LOG_FOLDER."/lan".$elem;
-            while(my $line = <FH_LAN>) {
+            my @content = <FH_LAN>;
+            close FH_LAN;
+            foreach my $line (@content) {
                 # Remove header
                 next if $line =~ /^Timestamp/i;
                 next if $line =~ /^\-/;
@@ -411,7 +414,6 @@ sub upRouteTable($) {
                     }
                 }
             }
-            close FH_LAN;
         }
     }
 }
