@@ -253,7 +253,7 @@ sub doForward($) {
             chomp $line;
 
             my @arr = split(" ", $line);
-            if ($arr[0] >= $FW_timestamp - 1 && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
+            if ($arr[0] >= $FW_timestamp - 2 && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
                 my $chk_flag = system("grep '$line' ".$output_file." >/dev/null");
                 next unless $chk_flag; # Suppress same message
 
@@ -367,7 +367,7 @@ sub upRouteTable($) {
                 chomp $line;
 
                 my @arr = split(" ", $line);
-                if ( $arr[0] >= $DV_timestamp - 1 && $arr[1] eq 'DV'
+                if ( $arr[0] >= $DV_timestamp - 2 && $arr[1] eq 'DV'
                   && $arr[2] == $elem && $arr[3] != $my_route_id ) {
                     # Got fresh incoming LSA message
                     # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
