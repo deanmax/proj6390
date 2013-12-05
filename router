@@ -108,24 +108,24 @@ while( time() - $start_time <= 100 ) {
     #   2. Do forward job every 1 seconds
     #   3. Send DV message every 5 seconds
     ###########################################
-        if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
-            doForward(\@attached_lan);
-            $FW_timestamp = time();
-        }
+    if ( $RT_stable && time() - $FW_timestamp >= 1 ) {
+        doForward(\@attached_lan);
+        $FW_timestamp = time();
+    }
 
-        # Send initial DV msg when Router starts
-        # i.e. Local lan connection status
-        doDV(\@attached_lan) and $DV_timestamp = time() if $init_DV;
-        $init_DV = 0;
-        if ( time() - $DV_timestamp >= 5 ) {
-            doDV(\@attached_lan);
-            $DV_timestamp = time();
-        }
+    # Send initial DV msg when Router starts
+    # i.e. Local lan connection status
+    doDV(\@attached_lan) and $DV_timestamp = time() if $init_DV;
+    $init_DV = 0;
+    if ( time() - $DV_timestamp >= 5 ) {
+        doDV(\@attached_lan);
+        $DV_timestamp = time();
+    }
 
-        if ( $RT_stable && time() - $NMR_timestamp >= 10 ) {
-            doNMR(\@attached_lan);
-            $NMR_timestamp = time();
-        }
+    if ( $RT_stable && time() - $NMR_timestamp >= 10 ) {
+        doNMR(\@attached_lan);
+        $NMR_timestamp = time();
+    }
 }
 ## Debug
 #use Data::Dumper;
@@ -242,6 +242,9 @@ sub doForward($) {
           or die "Can't open ".$LOG_FOLDER."/lan".$lan_id;
         my @content = <FH_LAN>;
         close FH_LAN;
+
+        #@content = sort(keys %{{ map { $_ => 1 } @content }}); # de-dup
+
         foreach my $line (@content) {
             # Remove header
             next if $line =~ /^Timestamp/i;
@@ -250,7 +253,10 @@ sub doForward($) {
             chomp $line;
 
             my @arr = split(" ", $line);
-            if ($arr[0] >= $FW_timestamp && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
+            if ($arr[0] >= $FW_timestamp - 1 && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
+                my $chk_flag = system("grep '$line' ".$output_file." >/dev/null");
+                next unless $chk_flag; # Suppress same message
+
                 my $src = $arr[3];
                 foreach my $k (0..9) {
                     if(defined $route_table[$k]->{'dest'} &&
@@ -350,6 +356,9 @@ sub upRouteTable($) {
               or die "Can't open ".$LOG_FOLDER."/lan".$elem;
             my @content = <FH_LAN>;
             close FH_LAN;
+
+            #@content = sort(keys %{{ map { $_ => 1 } @content }}); # de-dup
+
             foreach my $line (@content) {
                 # Remove header
                 next if $line =~ /^Timestamp/i;
@@ -358,7 +367,7 @@ sub upRouteTable($) {
                 chomp $line;
 
                 my @arr = split(" ", $line);
-                if ( $arr[0] >= $DV_timestamp && $arr[1] eq 'DV'
+                if ( $arr[0] >= $DV_timestamp - 1 && $arr[1] eq 'DV'
                   && $arr[2] == $elem && $arr[3] != $my_route_id ) {
                     # Got fresh incoming LSA message
                     # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,

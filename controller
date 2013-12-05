@@ -7,13 +7,6 @@
 # EMAIL: rxw130330@utdallas.edu
 #-------------------------------
 use strict;
-use IO::Handle;
-
-sub chkLAN($);
-sub chkDVMsg($$);
-sub chkDATAMsg($$);
-sub chkNMRMsg($$);
-sub chkHOSTMsg($$);
 
 my $LOG_FOLDER = "log";
 my $start_time = time();
@@ -66,9 +59,14 @@ while( time() - $start_time <= 100 ) {
 
         # Check each routX file, do corresponding coping and appending
         foreach my $router_id (@routers) {
-            chkDVMsg($router_id, $check_time);
-            chkDATAMsg($router_id, $check_time);
-            chkNMRMsg($router_id, $check_time);
+            open(FH_ROUTE, $LOG_FOLDER."/rout".$router_id)
+              or die "Can't open ".$LOG_FOLDER."/rout".$router_id;
+            my @content = <FH_ROUTE>;
+            close FH_ROUTE;
+
+            chkDVMsg($router_id, $check_time, \@content);
+            chkDATAMsg($router_id, $check_time, \@content);
+            chkNMRMsg($router_id, $check_time, \@content);
         }
 
         $check_time = time();
@@ -79,14 +77,11 @@ while( time() - $start_time <= 100 ) {
 ###############
 # Subroutines #
 ###############
-sub chkDVMsg($$) {
+sub chkDVMsg() {
     my $r_id = $_[0];
     my $time = $_[1];
+    my @content = @{$_[2]};
 
-    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
-      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    my @content = <FH_ROUTE>;
-    close FH_ROUTE;
     foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
@@ -95,7 +90,10 @@ sub chkDVMsg($$) {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] >= 1; # Stale message
+        next if $time - $arr[0] > 1; # Stale message
+
+        my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
+        next unless $chk_flag; # if same line already in lan file, just don't bother add it again
 
         if ($arr[1] eq 'DV') {
             open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
@@ -106,14 +104,11 @@ sub chkDVMsg($$) {
     }
 }
 
-sub chkDATAMsg($$) {
+sub chkDATAMsg() {
     my $r_id = $_[0];
     my $time = $_[1];
+    my @content = @{$_[2]};
 
-    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
-      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    my @content = <FH_ROUTE>;
-    close FH_ROUTE;
     foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
@@ -122,7 +117,10 @@ sub chkDATAMsg($$) {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] >= 1; # Stale message
+        next if $time - $arr[0] > 1; # Stale message
+
+        my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
+        next unless $chk_flag; # if same line already in lan file, just don't bother add it again
 
         if ($arr[1] =~ /^data/i) {
             open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
@@ -133,14 +131,11 @@ sub chkDATAMsg($$) {
     }
 }
 
-sub chkNMRMsg($$) {
+sub chkNMRMsg() {
     my $r_id = $_[0];
     my $time = $_[1];
+    my @content = @{$_[2]};
 
-    open(FH_ROUTE, $LOG_FOLDER."/rout".$r_id)
-      or die "Can't open ".$LOG_FOLDER."/rout".$r_id;
-    my @content = <FH_ROUTE>;
-    close FH_ROUTE;
     foreach my $line (@content) {
         # Remove header
         next if $line =~ /^Timestamp/i;
@@ -149,7 +144,10 @@ sub chkNMRMsg($$) {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] >= 1; # Stale message
+        next if $time - $arr[0] > 1; # Stale message
+
+        my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
+        next unless $chk_flag; # if same line already in lan file, just don't bother add it again
 
         if ($arr[1] eq 'NMR') {
             open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
@@ -160,7 +158,7 @@ sub chkNMRMsg($$) {
     }
 }
 
-sub chkHOSTMsg($$) {
+sub chkHOSTMsg() {
     my $h_id = $_[0];
     my $time = $_[1];
 
@@ -177,6 +175,9 @@ sub chkHOSTMsg($$) {
 
         my @arr = split(" ", $line);
         next if $time - $arr[0] > 1; # Stale message
+
+        my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
+        next unless $chk_flag; # if same line already in lan file, just don't bother add it again
 
         if ($arr[1] eq 'receiver' || $arr[1] =~ /^data/i) {
             open(FH_LAN, ">>".$LOG_FOLDER."/lan".$arr[2])
@@ -196,7 +197,7 @@ sub chkHOSTMsg($$) {
 #   1 if lan file exists
 #   0 if lan file doesn't exist
 #################################
-sub chkLAN($) {
+sub chkLAN() {
     my $lan_id = $_[0];
 
     if (! -e $LOG_FOLDER."/lan".$lan_id) {

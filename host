@@ -134,8 +134,11 @@ sub chk_mcast_msg($) {
         chomp $line;
 
         my @arr = split(" ", $line);
-        if ($arr[0] >= $mcast_chk_timestamp && $arr[1] =~ /^data/ &&
-            $arr[2] == $lan_id) {
+        if ($arr[0] >= $mcast_chk_timestamp - 2 && $arr[1] =~ /^data/ &&
+            $arr[2] == $lan_id) { # Look back 2 seconds, file sync delay expected
+            my $chk_flag = system("grep '$line' ".$input_file." >/dev/null");
+            next unless $chk_flag; # Suppress same message
+            
             open(my $fh, ">>".$input_file)
               or die "Can't open ".$input_file." for writing!";
             print $fh $line."\n";
