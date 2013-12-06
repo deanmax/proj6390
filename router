@@ -377,7 +377,7 @@ sub upRouteTable($) {
 
                     $route_table[$n]->{'dest'} = $n;
                     if ( defined $route_table[$n]->{'hops'} &&
-                         $route_table[$n]->{'hops'} == 0 ) {
+                    $route_table[$n]->{'hops'} == 0 ) {
                         # Dest already exists in route table.
                         # Neighbor lan, record child lans
                         if ($arr[5+2*$n] == $my_route_id) {
@@ -387,17 +387,21 @@ sub upRouteTable($) {
                             }
                         }
                     } elsif ( (defined $route_table[$n]->{'hops'} &&
-                         $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
-                      || (defined $route_table[$n]->{'hops'} &&
-                         $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
-                      && $route_table[$n]->{'next_hop'} <= $arr[3]) ) {
+                    $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
+                    || (defined $route_table[$n]->{'hops'} &&
+                    $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
+                    && $route_table[$n]->{'next_hop'} < $arr[3]) ) {
                         # Dest already exists in route table.
                         # Previous hops smaller or equal but through a
                         # next-hop router with lower router_id
 
                         # Make note of any child lan that uses me as its
                         # next hop to dest lan $n
-                        if ($arr[5+2*$n] == $my_route_id) {
+                        if ( ($route_table[$n]->{'hops'} + 1 == $arr[4+2*$n] &&
+                        $arr[5+2*$n] < $my_route_id) ||
+                        ($route_table[$n]->{'hops'} == $arr[4+2*$n] &&
+                        $arr[3] > $my_route_id) ||
+                        $arr[5+2*$n] == $my_route_id ) {
                             if (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}}) {
                                 push @{$route_table[$n]->{'child_map'}},$elem;
                                 $RT_stable = 0;
