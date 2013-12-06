@@ -337,88 +337,89 @@ sub upRouteTable($) {
     my @attached_lan = @$attached_lan;
     $RT_stable = 1;
     foreach my $elem (@attached_lan) {
-        # Update routing table for directly attached lan
-        foreach my $n (0..9) { # Traverse all remaining columns.
-                               # At most 10 lans
-            if ( grep {$_ == $n} @attached_lan ) {
-                # This field is the lan that directly attaches to me
-                $route_table[$n]->{'dest'} = $n;
-                $route_table[$n]->{'hops'} = 0;
-                $route_table[$n]->{'next_hop'} = $my_route_id;
-                # No next_lan for directed attached destination
-                #$route_table[$n]->{'next_lan'} = undef;
-            }
-        }
+        # Update routing table for each directly attached lan
+        $route_table[$elem]->{'dest'} = $elem;
+        $route_table[$elem]->{'hops'} = 0;
+        $route_table[$elem]->{'next_hop'} = $my_route_id;
+        # No next_lan for directed attached destination
+        #$route_table[$elem]->{'next_lan'} = undef;
 
         # Update local routing table for remote lan
-        if ( -e $LOG_FOLDER."/lan".$elem ) {
-            open(FH_LAN, $LOG_FOLDER."/lan".$elem)
-              or die "Can't open ".$LOG_FOLDER."/lan".$elem;
-            my @content = <FH_LAN>;
-            close FH_LAN;
+        next if ! -e $LOG_FOLDER."/lan".$elem;
+        open(FH_LAN, $LOG_FOLDER."/lan".$elem)
+          or die "Can't open ".$LOG_FOLDER."/lan".$elem;
+        my @content = <FH_LAN>;
+        close FH_LAN;
 
-            #@content = sort(keys %{{ map { $_ => 1 } @content }}); # de-dup
+        #@content = sort(keys %{{ map { $_ => 1 } @content }}); # de-dup
 
-            foreach my $line (@content) {
-                # Remove header
-                next if $line =~ /^Timestamp/i;
-                next if $line =~ /^\-/;
-                next if $line =~ /^\s*$/;
-                chomp $line;
+        foreach my $line (@content) {
+            # Remove header
+            next if $line =~ /^Timestamp/i;
+            next if $line =~ /^\-/;
+            next if $line =~ /^\s*$/;
+            chomp $line;
 
-                my @arr = split(" ", $line);
-                if ( $arr[0] >= $DV_timestamp - 2 && $arr[1] eq 'DV'
-                  && $arr[2] == $elem && $arr[3] != $my_route_id ) {
-                    # Got fresh incoming LSA message
-                    # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
-                    # 4->d0, 5->router0, 6->d1, 7->router1, ... , 22->d9,
-                    # 23->router9
-                    foreach my $n (0..9) { # Traverse all remaining columns.
-                                           # At most 10 lans
-                        if ( defined $arr[4+2*$n] && $arr[4+2*$n] < 10 ) {
-                            # Hops = 10 means this dest is not reachable
-                            $route_table[$n]->{'dest'} = $n;
-                            if ( defined $route_table[$n]->{'hops'} &&
-                                 $route_table[$n]->{'hops'} == 0 ) {
-                                # Neighbor lan, record child lans
-                                if ($arr[5+2*$n] == $my_route_id) {
-                                    push @{$route_table[$n]->{'child_map'}},$elem
-                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
-                                }
-                                next;
-                            } elsif ( (defined $route_table[$n]->{'hops'} &&
-                                 $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
-                              || (defined $route_table[$n]->{'hops'} &&
-                                 $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
-                              && $route_table[$n]->{'next_hop'} <= $arr[3]) ) {
-                                # Previous hops smaller or equal but through a
-                                # next-hop router with lower router_id
+            my @arr = split(" ", $line);
+            # Look back 2 seconds in case file sync delay.
+            if ( $arr[0] >= $DV_timestamp - 2 && $arr[1] eq 'DV'
+              && $arr[2] == $elem && $arr[3] != $my_route_id ) {
+                # Got fresh incoming LSA message!
+                # @arr index: 0->timestamp, 1->DV, 2->lan_id, 3->route_id,
+                # 4->d0, 5->router0, 6->d1, 7->router1, ... , 22->d9,
+                # 23->router9
+                foreach my $n (0..9) {
+                    # Traverse all remaining columns in this DV msg.
+                    # At most 10 lans
 
-                                # Make note of any child lan that uses me as its
-                                # next hop to dest lan $n
-                                if ($arr[5+2*$n] == $my_route_id) {
-                                    push @{$route_table[$n]->{'child_map'}},$elem
-                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
-                                }
-                                next;
-                            } else {
-                                if ($arr[5+2*$n] == $my_route_id) {
-                                    # to dest lan $n, my neighbor's next hop is me
-                                    #
-                                    # Just discard this DV, because there must be
-                                    # another shorter path coming from other DV.
-                                    #
-                                    # Here, just make note of this child lan
-                                    push @{$route_table[$n]->{'child_map'}},$elem
-                                      if !grep {$_ == $elem} @{$route_table[$n]->{'child_map'}};
+                    # Hops = 10 means this dest is not reachable
+                    next if $arr[4+2*$n] == 10;
 
-                                } else {
-                                    $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
-                                    $route_table[$n]->{'next_hop'} = $arr[3];
-                                    $route_table[$n]->{'next_lan'} = $arr[2];
-                                    $RT_stable = 0; # Routing Table update happens
-                                }
+                    $route_table[$n]->{'dest'} = $n;
+                    if ( defined $route_table[$n]->{'hops'} &&
+                         $route_table[$n]->{'hops'} == 0 ) {
+                        # Dest already exists in route table.
+                        # Neighbor lan, record child lans
+                        if ($arr[5+2*$n] == $my_route_id) {
+                            if (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}}) {
+                                push @{$route_table[$n]->{'child_map'}},$elem;
+                                $RT_stable = 0;
                             }
+                        }
+                    } elsif ( (defined $route_table[$n]->{'hops'} &&
+                         $route_table[$n]->{'hops'} < $arr[4+2*$n] + 1)
+                      || (defined $route_table[$n]->{'hops'} &&
+                         $route_table[$n]->{'hops'} == $arr[4+2*$n] + 1
+                      && $route_table[$n]->{'next_hop'} <= $arr[3]) ) {
+                        # Dest already exists in route table.
+                        # Previous hops smaller or equal but through a
+                        # next-hop router with lower router_id
+
+                        # Make note of any child lan that uses me as its
+                        # next hop to dest lan $n
+                        if ($arr[5+2*$n] == $my_route_id) {
+                            if (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}}) {
+                                push @{$route_table[$n]->{'child_map'}},$elem;
+                                $RT_stable = 0;
+                            }
+                        }
+                    } else {
+                        if ($arr[5+2*$n] == $my_route_id) {
+                            # to dest lan $n, my neighbor's next hop is me
+                            #
+                            # Just discard this DV, because there must be
+                            # another shorter path coming from other DV.
+                            #
+                            # Here, just make note of this child lan
+                            if (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}}) {
+                                push @{$route_table[$n]->{'child_map'}},$elem;
+                                $RT_stable = 0;
+                            }
+                        } else {
+                            $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
+                            $route_table[$n]->{'next_hop'} = $arr[3];
+                            $route_table[$n]->{'next_lan'} = $arr[2];
+                            $RT_stable = 0; # Routing Table update happens
                         }
                     }
                 }
