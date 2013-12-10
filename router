@@ -257,7 +257,7 @@ sub doForward($) {
 
             my @arr = split(" ", $line);
             if ($arr[0] >= $FW_timestamp - 2 && $arr[1] =~ /^data/ && $arr[2] == $lan_id) {
-                my $chk_flag = system("grep '$line' ".$output_file." >/dev/null");
+                my $chk_flag = system("grep '$arr[0] $arr[1]' ".$output_file." >/dev/null");
                 next unless $chk_flag; # Suppress same message
 
                 my $src = $arr[3];
@@ -306,13 +306,14 @@ sub doNMR($) {
         # If no child lan, send NMR
         if ( !defined @{$route_table[$k]->{'child_map'}} ||
         @{$route_table[$k]->{'child_map'}} == 0 ) {
-            my $parent_lan = $route_table[$k]->{'next_lan'};
-            open(FH_ROUTE, ">>".$output_file)
-              or die "Can't open ".$output_file." for writing!";
-            my $msg = time()." NMR $parent_lan $my_route_id ".
-                      $route_table[$k]->{'dest'};
-            print FH_ROUTE $msg."\n";
-            close FH_ROUTE;
+            foreach my $parent_lan (@attached_lan) {
+                open(FH_ROUTE, ">>".$output_file)
+                  or die "Can't open ".$output_file." for writing!";
+                my $msg = time()." NMR $parent_lan $my_route_id ".
+                          $route_table[$k]->{'dest'};
+                print FH_ROUTE $msg."\n";
+                close FH_ROUTE;
+            }
 
             next;
         }
@@ -329,19 +330,19 @@ sub doNMR($) {
         }
 
         if ( $send_nmr ) {
-            my $parent_lan = $route_table[$k]->{'next_lan'};
-            open(FH_ROUTE, ">>".$output_file)
-              or die "Can't open ".$output_file." for writing!";
-            my $msg = time()." NMR $parent_lan $my_route_id ".
-                      $route_table[$k]->{'dest'};
-            print FH_ROUTE $msg."\n";
-            close FH_ROUTE;
+            foreach my $parent_lan (@attached_lan) {
+                open(FH_ROUTE, ">>".$output_file)
+                  or die "Can't open ".$output_file." for writing!";
+                my $msg = time()." NMR $parent_lan $my_route_id ".
+                          $route_table[$k]->{'dest'};
+                print FH_ROUTE $msg."\n";
+                close FH_ROUTE;
+            }
         }
     }
 }
 
 sub upFwdGrp() {
-
     foreach my $k (0..9) {
         # Skip if dest is not reachable
         next if ! defined $route_table[$k]->{'dest'};
@@ -406,8 +407,9 @@ sub upRouteTable($) {
                     $route_table[$n]->{'hops'} == 0 ) {
                         # Dest already exists in route table.
                         # Neighbor lan, record child lans
-                        if ($arr[5+2*$n] == $my_route_id) {
-                            if (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}}) {
+                        if ($arr[4+2*$n] != 0 || $arr[3] > $my_route_id) {
+                            if ((!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}})
+                            && $elem != $n) {
                                 push @{$route_table[$n]->{'child_map'}},$elem;
                                 $RT_stable = 0;
                             }
@@ -445,7 +447,8 @@ sub upRouteTable($) {
                                 push @{$route_table[$n]->{'child_map'}},$elem;
                                 $RT_stable = 0;
                             }
-                        } else {
+                        } elsif ( $route_table[$n]->{'hops'} != $arr[4+2*$n] + 1 ||
+                        $route_table[$n]->{'next_hop'} != $arr[3] ) {
                             $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
                             $route_table[$n]->{'next_hop'} = $arr[3];
                             $route_table[$n]->{'next_lan'} = $arr[2];

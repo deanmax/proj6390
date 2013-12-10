@@ -37,7 +37,7 @@ for( my $i = 0 ; $i < @ARGV; $i++ ) {
 }
 
 # Validate Lan file existance
-sleep 1; # To make sure all lan files has been created by router process
+sleep 2; # To make sure all lan files has been created by router process
 foreach my $lan_id (@lans) {
     exit 2 if(!chkLAN($lan_id));
 }
@@ -117,7 +117,7 @@ sub chkDATAMsg() {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] > 2; # Stale message
+        next if $time - $arr[0] > 3; # Stale message
 
         my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
         next unless $chk_flag; # if same line already in lan file, just don't bother add it again
@@ -162,6 +162,8 @@ sub chkHOSTMsg() {
     my $h_id = $_[0];
     my $time = $_[1];
 
+    next if ! -e $LOG_FOLDER."/hout".$h_id;
+
     open(FH_HOST, $LOG_FOLDER."/hout".$h_id)
       or die "Can't open ".$LOG_FOLDER."/hout".$h_id;
     my @content = <FH_HOST>;
@@ -174,7 +176,7 @@ sub chkHOSTMsg() {
         chomp $line;
 
         my @arr = split(" ", $line);
-        next if $time - $arr[0] > 2; # Stale message
+        next if $time - $arr[0] > 1; # Stale message
 
         my $chk_flag = system("grep '$line' ".$LOG_FOLDER."/lan".$arr[2]." >/dev/null");
         next unless $chk_flag; # if same line already in lan file, just don't bother add it again
