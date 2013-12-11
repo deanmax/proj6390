@@ -35,6 +35,7 @@ my $init_DV = 1; # For sending DV message for the first time.
 # 'next_lan' stands for the lan over which next_hop router is reached
 # 'child_map' array has all neighbor lan's ids that use this router as their
 #     next hop to 'dest'.
+# 'leaf_lan' stands for lan that only connects to one router
 # 'fwd_grp' stores actual child lans that valid for accepting message
 #     from 'dest'
 my @route_table = {};
@@ -325,7 +326,12 @@ sub doNMR($) {
         if ( defined @{$route_table[$k]->{'child_map'}} &&
         @{$route_table[$k]->{'child_map'}} != 0 ) {
             foreach my $c (@{$route_table[$k]->{'child_map'}}) {
-                $send_nmr = 0 if !chkChildNMR($k, $c) or chkReceiver($c);
+                if (defined @{$route_table[$k]->{'leaf_lan'}} &&
+                (grep {$_ == $c} @{$route_table[$k]->{'leaf_lan'}})) {
+                    $send_nmr = 0 if chkReceiver($c);
+                } else {
+                    $send_nmr = 0 if !chkChildNMR($k, $c) or chkReceiver($c);
+                }
             }
         }
 
@@ -352,8 +358,14 @@ sub upFwdGrp() {
 
         $route_table[$k]->{'fwd_grp'} = ();
         foreach my $c (@{$route_table[$k]->{'child_map'}}) {
-            push (@{$route_table[$k]->{'fwd_grp'}}, $c)
-            if !chkChildNMR($k, $c) or chkReceiver($c);
+            if (defined @{$route_table[$k]->{'leaf_lan'}} &&
+            (grep {$_ == $c} @{$route_table[$k]->{'leaf_lan'}})) {
+                push (@{$route_table[$k]->{'fwd_grp'}}, $c)
+                if chkReceiver($c);
+            } else {
+                push (@{$route_table[$k]->{'fwd_grp'}}, $c)
+                if !chkChildNMR($k, $c) or chkReceiver($c);
+            }
         }
     }
 }
@@ -361,7 +373,7 @@ sub upFwdGrp() {
 sub upRouteTable($) {
     my $attached_lan = $_[0];
     my @attached_lan = @$attached_lan;
-    $RT_stable = 1;
+    $RT_stable = 1; # Routing Table stable flag
 
     foreach my $elem (@attached_lan) {
         # Update routing table for each directly attached lan
@@ -378,7 +390,17 @@ sub upRouteTable($) {
         my @content = <FH_LAN>;
         close FH_LAN;
 
-        #@content = sort(keys %{{ map { $_ => 1 } @content }}); # de-dup
+        # Leaf lan has no DV message. Add it to child_map
+        if (!$init_DV && (!grep {/DV\s$elem\s[^$my_route_id]\s/} @content)) {
+            foreach my $n (0..9) {
+                if (defined $route_table[$n]->{'dest'} && $n != $elem &&
+                (!grep {$_ == $elem} @{$route_table[$n]->{'child_map'}})) {
+                    push @{$route_table[$n]->{'child_map'}},$elem;
+                    push @{$route_table[$n]->{'leaf_lan'}},$elem;
+                    $RT_stable = 0; # Routing Table update happens
+                }
+            }
+        }
 
         foreach my $line (@content) {
             # Remove header
@@ -452,7 +474,7 @@ sub upRouteTable($) {
                             $route_table[$n]->{'hops'} = $arr[4+2*$n] + 1;
                             $route_table[$n]->{'next_hop'} = $arr[3];
                             $route_table[$n]->{'next_lan'} = $arr[2];
-                            $RT_stable = 0; # Routing Table update happens
+                            $RT_stable = 0;
                         }
                     }
                 }
