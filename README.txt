@@ -5,9 +5,14 @@
 # NETID: rxw130330
 # UTDID: 2021172972
 
-# All commands in this project are Perl script. They are self-explanatory which do not need compilation process. Just simple execute them.
+###########
+# *NOTES* #
+###########
+# All commands in this project are Perl script. They are self-explanatory which do not need compilation process. Just simply execute them.
 
-# All log files have timestamp(message generate time) listed as their first column in each line of messages.
+# Since perl is not a compile language and there're lots of system calls in opening/closing files, reading/writing sync issue happens occasionally. It sometimes cause messages and data to be lost, especially on a system where CPU load is high. Thus in order to have a perfect simulation, I recommend running it against server peak time.
+
+# Log files will be stored under a folder named 'log', which is in the same directory as router, host and controller commands. All log files have timestamp(message generate time) listed as their first column in each line of messages.
 
 # In DV message, if a hop count is denoted by 10, then the corresponding next hop router id will also be marked as 10(which actually doesn't exist).
 
