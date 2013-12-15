@@ -360,9 +360,11 @@ sub upFwdGrp() {
         foreach my $c (@{$route_table[$k]->{'child_map'}}) {
             if (defined @{$route_table[$k]->{'leaf_lan'}} &&
             (grep {$_ == $c} @{$route_table[$k]->{'leaf_lan'}})) {
+                # Leaf lan. Only check IGMP
                 push (@{$route_table[$k]->{'fwd_grp'}}, $c)
                 if chkReceiver($c);
             } else {
+                # Check IGMP and NMR
                 push (@{$route_table[$k]->{'fwd_grp'}}, $c)
                 if !chkChildNMR($k, $c) or chkReceiver($c);
             }
